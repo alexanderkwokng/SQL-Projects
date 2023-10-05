@@ -1,1 +1,133 @@
-##Intended for project Readme
+SQL Data Cleaning Project #1
+
+Goal: To apply best practices of data cleaning of SQL data on fictional data source Northwind Traders
+Skills: Learning to remove duplicate rows, use CASE statement to create new dimensions, identifying and cleaning NULL values
+Tasks: Detect and Remove Duplicates, Clean Data with CASE Statement, Dealing with NULLS in SQL
+
+Task #1 Detect and Remove duplicates
+
+—————— 
+
+SELECT
+	CustomerID,
+	ShipName,
+	ShipAddress,
+	ShipPostalCode,
+	ShipCountry
+FROM
+	Orders;
+
+
+———————
+
+/*Create Row Number*/
+
+SELECT
+	CustomerID,
+	ShipName,
+	ShipAddress,
+	ShipPostalCode,
+	ShipCountry,
+	ROW_NUMBER() OVER(order by CustomerID) AS rn
+FROM
+	Orders;
+
+
+———————
+
+/*Remove Duplicates */
+
+EITH cte1 AS (
+SELECT
+	CustomerID,
+	ShipName,
+	ShipAddress,
+	ShipPostalCode,
+	ShipCountry,
+	ROW_NUMBER() OVER(order by CustomerID) AS rn
+FROM
+	Orders;
+)
+
+SELECT 
+	*
+FROM
+	cte1
+WHERE
+	Rn = 1
+
+———————
+
+Notes: By using row number, you can identify how many duplicates are associated with each customerid. By using CTE1 we are selecting the customer with the first row identified and
+Using WHERE to limit the customer id that appears first as row number.
+
+Key takeaways:
+Row_Number() is a window function in SQL that assigns a unique sequential integer to each row in the result set.
+A Common Table Expression (CTE) 
+
+
+Task #2 Clean Data with Case Statements
+
+———————
+
+/*Check to see what the minimum and maximum price are for freight */
+
+SELECT 
+	min(freight),
+	max(freight)
+FROM
+	orders
+
+———————
+
+/*Write CASE Statement to categorize Freight Charges
+Low charge is less than 50, Medium charge is between 50 and 200 and High Charge is greater than 200 */
+
+SELECT 
+	Freight,
+	CASE WHEN Freight < 50 THEN 'Low Charge' 
+		WHEN Freight BETWEEN 50 AND 200 THEN 'Medium Charge'
+		WHEN Freight > 200 THEN 'High Charge'
+	END AS Charge
+FROM
+	orders
+
+———————
+
+Key Takeaways: 
+The CASE Statement in SQL is a conditional expression that allows you to evaluate one or a series of conditions
+The basic syntax of a CASE statement is as follows: CASE WHEN _____ THEN ____ END
+Else is option
+
+
+Task #3 Dealing with NULLs in SQL
+
+———————
+/* Write statement and identify Region is NULL */
+
+SELECT
+	CustomerID, 
+	ContactName, 
+	City, 
+	Region
+FROM
+	Customers
+———————
+/* Use ISNULL to replace all NULL values in Region column with label ‘No region’
+
+SELECT
+	CustomerID, 
+	ContactName, 
+	City, 
+	ISNULL(Region, 'No Region') AS Region
+FROM
+	Customers
+———————
+
+Notes: We created a new region column that replaces all NULL values with string ‘No region’
+
+Key Takeaways:
+The ISNULL Function in SQL is a tool for handling NULL values in database management 
+The basic syntax of a ISNULL statement is ISNULL(expression, replacement_value)
+ISNULL is used in SQL Server, while NVL is used in Oracle.
+
