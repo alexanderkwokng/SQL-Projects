@@ -1,0 +1,282 @@
+
+I. Demonstrating Exploratory Data Analysis with SQL
+
+Scenario: The Director of the Farmer’s Market asks us to help them build some reports to use throughout the year, and gives us access to their database.
+They have not given us the specific report requirements yet, but they told us that they’ll be asking questions related to general product availability and purchase trends and we will be given the dating mapping diagram.
+Based on the information we have, we can guess that we should familiarize ourselves with the following tables: product, vendor_inventory, and customer_purchases.
+
+Some questions that might be asked are:
+
+-How many records are in the table and how far back in time does the data go?
+-What kind of information is available about each product and each purchase?
+-What is the level of granularity of each table and what makes each row unique?
+-Since we are looking at trends over time, what type of data and time dimensions are available, and how do the different values look when summarized
+Over time. 
+-How is the data in each table related to other tables? How might we be able to join them together to summarize the details for reporting?
+
+II Exploring the Products Table
+
+Get a general idea of what dimensions are available for this table.
+—-
+SELECT * FROM farmers_market.product
+LIMIT 10
+—-
+
+Confirm if product_id is a primary key and if it could be a unique identifier. To check to see if there are two rows with same prodcut_id, we can write a query that groups by product_id and returns any groups with more than one record. 
+—
+SELECT product_id, count(*)
+FROM farmers_market.product
+GROUP BY product_Id
+HAVING count(*) > 1
+—
+Explore the product categories for each id in the Product table
+—-
+SELECT 
+	*
+FROM
+	farmers_market.product_category
+—
+
+Explore how many different products are there?
+
+—
+SELECT COUNT(*) FROM farmers_market.product; 
+—
+There are 23 products entered in this database
+
+
+III Exploring Possible Column Values
+
+Let’s explore the data in the vendor_inventory table next
+
+—
+SELECT 
+	*
+FROM
+	farmers_market.vendor_inventory LIMIT 10
+
+—
+
+Reading the column headers, we can see there are columns for market_date, vendor_id, product_id and original_price.
+We may need to clarify what original_price means. market_date should indicate what date the product brought to the market. 
+
+
+Let’s confirm that there are no duplicative rows in the vendor_inventory table
+
+—
+
+SELECT 
+	market_date,
+    	vendor_id,
+    	product_id,
+    	count(*)
+FROM
+	farmers_market.vendor_inventory
+GROUP BY
+	market_date, vendor_id, product_id
+HAVING 
+	count(*) > 1
+—
+
+This query returned 0 rows which indicates that there are no combinations of the three values that occur more on more than one row, so at least in this current dat, this combinations of fields are all unique, and 
+The vendor_inventory table has a granularity of one record per market date, vendor, and product.
+
+
+Let’s figure out how far does the data go back. What was the first market date?
+
+—
+
+SELECT
+	min(market_date),
+   	 max(market_date)
+FROM
+	farmers_market.vendor_inventory
+;
+
+—
+
+The results show that we have one and a half years’ worth of records. We would not have enough complete years to perform forecasting involving annual seasonalities. 
+It will also be worth looking into seeing if purchases were track during this time period as well so that we can compare inventory vs sales.
+
+
+Let’s figure out how many vendors are selling at the market. What were was the date that they started selling. What were the most recent date that they were selling. 
+
+— 
+
+SELECT
+	vendor_id,
+    	min(market_date),
+    	max(market_date)
+FROM
+	farmers_market.vendor_inventory
+GROUP BY
+	vendor_id
+ORDER BY
+	min(market_date), max(market_date)
+
+
+—-
+
+Query output shows that there were only 3 vendors recorded in the table. Vendors 7 and 8 have product inventory since April 2019 and a most recent inventory activity of October 2020.
+Vendor 4 has product inventory as early as June 2019 and most recent inventory activity at September 2020.
+
+
+IV. Exploring Changes Over Time
+
+Let’s examine the vendor inventory activity over time. We can use the Extract statement to group vendor records by year and by month.
+
+——
+
+SELECT 
+	EXTRACT(YEAR FROM market_date) AS market_year,
+    EXTRACT(MONTH FROM market_date) AS market_month,
+    COUNT(DISTINCT vendor_id) AS vendors_with_inventory
+FROM
+	farmers_market.vendor_inventory
+GROUP BY
+	EXTRACT(YEAR FROM market_date), EXTRACT(MONTH FROM market_date)
+ORDER BY
+	EXTRACT(YEAR FROM market_date), EXTRACT(MONTH FROM market_date)
+
+— 
+
+There were no vendor activities from January 2020 to February 2020. It appears that there are market activities for months 3-12, so we will need to confirm
+With the Director of sales to see if markets are closed for months 1 and 
+
+
+Let’s look at a specific vendor’s inventory. Let’s see vendor 7’s invetory
+
+——
+
+SELECT 
+	*
+FROM
+	farmers_market.vendor_inventory
+WHERE
+	vendor_id = 7
+ORDER BY
+	market_date, product_id
+
+——
+
+
+This query shows a breakdown of the product types that are being inventoried over time. Note that product 4 was primarily stored in inventory
+From April 2019 to June 2019.
+
+
+Write a Query to see the customer purchasing actibvity for a specific vendor
+
+—
+
+SELECT 
+	*
+FROM
+	farmers_market.customer_purchases
+WHERE
+	vendor_id = 7 AND product_id = 4
+ORDER BY
+	market_date, transaction_time
+
+—
+
+This query allows us to focus on customer purchasing acitibty for vendor 7 and their product id 4. We can see that most customers are buying 1-5 of these items at $4 per item.
+
+
+If we want to find out how a vendor’s sales performance were for a specific product for each day, we can write this query. We can use the GROUP BY statement to aggregate the data for date, vendor id and product id and sum the total sales for each day
+
+—
+
+SELECT
+	market_date,
+    	vendor_id,
+    	product_id,
+    	SUM(quantity) quantity_sold,
+    	SUM(quantity * cost_to_customer_per_qty)  total_sales
+FROM
+	farmers_market.customer_purchases
+WHERE
+	vendor_id = 7 and product_id = 4
+GROUP BY
+	market_date, vendor_id, product_id
+ORDER BY
+	market_date, vendor_id, product_id
+
+—
+
+V. Exploring Inventory vs. Sales
+
+Now that we have queried information from the inventory and purchases table, we have the opportunity to join both tables to get a side by side 
+Comparison of inventory vs sales per vendor. This can be done by joining the inventory table with the sales table with the Left Join statement.
+
+—
+
+SELECT 
+	*
+FROM
+	farmers_market.vendor_inventory AS vi
+LEFT JOIN
+	(
+    SELECT market_date,
+		vendor_id,
+        product_id,
+        SUM(quantity) AS quantity_sold,
+        SUM(quantity * cost_to_customer_per_qty) AS total_sales
+	FROM
+		farmers_market.customer_purchases
+	GROUP BY
+		market_date,
+        vendor_id,
+        product_id
+        ) AS sales
+	ON vi.market_date = sales.market_date
+		AND vi.vendor_id = sales.vendor_id
+        AND vi.product_id = sales.product_id
+ORDER BY
+	vi.market_date,
+    vi.vendor_id,
+    vi.product_id
+LIMIT 10
+
+— 
+
+To drill down further, we can use the WHERE statement to filter down to a specific vendor and a specific product. 
+
+— 
+SELECT 
+	vi.market_date,
+    v.vendor_name,
+    vi.product_id,
+    p.product_name,
+    vi.quantity AS quantity_available,
+    sales.quantity_sold,
+    vi.original_price,
+    sales.total_sales
+FROM farmers_market.vendor_inventory AS vi
+	LEFT JOIN
+	(
+    SELECT market_date,
+		vendor_id,
+        product_id,
+        SUM(quantity) AS quantity_sold,
+        SUM(quantity * cost_to_customer_per_qty) AS total_sales
+	FROM farmers_market.customer_purchases
+    GROUP BY market_date, vendor_id, product_id
+    ) AS sales
+    ON vi.market_date = sales.market_date
+		AND vi.vendor_id = sales.vendor_id
+        AND vi.product_id = sales.product_id
+	LEFT JOIN farmers_market.vendor v
+    ON vi.vendor_id = v.vendor_id
+    LEFT JOIN farmers_market.product p 
+    ON vi.product_id = p.product_id
+    WHERE vi.vendor_id = 7
+    AND vi.product_id = 4
+    ORDER BY vi.market_date, vi.vendor_id, vi.product_id 
+
+— 
+
+In this query, we drilled down to the vendor named Marco’s Pickle and examine their product called Banana pepper to see their level of inventory and sales over time.
+We can see that this vendor replisihes 30-40 pickles everyday and sells between 1 and 40 jars everyday. We can adjust the parameters for the WHERE clause to examine
+Different vendors and different products and then extract that data and use it in tableau to examine inventory turnover for products. 
+
+
